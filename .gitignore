@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# MindX Specific
+uploads/
+db/
+outputs/
+*.pdf
+*.docx
+*.txt
+!requirements.txt
+!README.md
+!questions.txt
+
+# IDEs
+.vscode/
+.idea/
