@@ -205,35 +205,6 @@ with st.sidebar:
                     st.error(f"Backend offline: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    if "active_file" in st.session_state:
-        st.divider()
-        st.subheader("🎓 Advanced Learning")
-        st.markdown('<div class="secondary-btn">', unsafe_allow_html=True)
-        if st.button("🆕 Generate Hard Questions", use_container_width=True):
-            with st.status("🚀 Crafting elite questions...", expanded=True) as status:
-                try:
-                    res = requests.post(
-                        f"{API_BASE_URL}/generate-questions", 
-                        json={"filename": st.session_state["active_file"]}
-                    )
-                    if res.status_code == 200:
-                        st.session_state["hard_questions"] = res.json()["questions_markdown"]
-                        status.update(label="Questions Generated!", state="complete")
-                    else:
-                        st.error("Failed to generate questions.")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        if "hard_questions" in st.session_state:
-            st.download_button(
-                label="📥 Download Questions (.txt)",
-                data=st.session_state["hard_questions"],
-                file_name=f"MindX_Questions_{st.session_state['active_file']}.txt",
-                mime="text/plain",
-                use_container_width=True
-            )
-
 # --- Main Interaction Area ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -243,9 +214,9 @@ if not st.session_state.messages:
     st.markdown("""
     <div style="text-align: center; padding-top: 50px;">
         <h1 style="font-size: 3.5rem; margin-bottom: 0px;">MindX</h1>
-        <p style="font-size: 1.4rem; color: #8b949e; margin-bottom: 40px;">Deep Learning & Technical Evaluation</p>
+        <p style="font-size: 1.4rem; color: #8b949e; margin-bottom: 40px;">Interactive Document Assistant</p>
         <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 30px; border-radius: 20px; max-width: 600px; margin: 0 auto;">
-            <p style="color: #c9d1d9; font-size: 1.1rem;">MindX is your elite technical companion. Upload complex documentation to chat, extract insights, or generate challenging senior-level technical questions.</p>
+            <p style="color: #c9d1d9; font-size: 1.1rem;">MindX is your elite technical companion. Upload complex documentation to chat, extract insights, and master your technical files locally.</p>
         </div>
     </div>
     """, unsafe_allow_html=True)

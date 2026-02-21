@@ -9,12 +9,7 @@ import docx                     # Specialist tool for reading and extracting tex
 from langchain_text_splitters import RecursiveCharacterTextSplitter # Cuts long documents into manageable pieces
 from langchain_community.vectorstores import Chroma                 # Library that stores document as math vectors
 from langchain_ollama import OllamaEmbeddings, OllamaLLM           # Local Ollama support
-from langchain_groq import ChatGroq                                 # Cloud Groq support
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings           # Cloud OpenAI support
-from dotenv import load_dotenv                                      # Loads keys from .env if present
 import chromadb                 # Database engine used for ultra-fast document searching
-
-load_dotenv() # Load local environment variables if they exist
 
 app = FastAPI(title="MindX API")
 
@@ -93,37 +88,10 @@ def chunk_text(text: str, chunk_size: int = 1500, chunk_overlap: int = 300):
     chunks = text_splitter.split_text(text)
     return [c.strip() for c in chunks if c.strip()]
 
-# --- AI & Memory Initialization (Hybrid Mode) ---
-# Decides whether to use Cloud (Groq/OpenAI) or Local (Ollama)
-
-def get_ai_backends():
-    # Priority 1: Groq (Free & Fast)
-    if os.getenv("GROQ_API_KEY"):
-        print("--- Using Groq Cloud AI ---")
-        llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.7)
-        # Use OpenAI-style embeddings if available, otherwise fallback to local for embeddings 
-        # (Chroma needs embeddings locally for initial indexing if not using a cloud vector DB)
-        if os.getenv("OPENAI_API_KEY"):
-             embeddings = OpenAIEmbeddings()
-        else:
-             embeddings = OllamaEmbeddings(model="nomic-embed-text")
-        return llm, embeddings
-    
-    # Priority 2: OpenAI
-    if os.getenv("OPENAI_API_KEY"):
-        print("--- Using OpenAI Cloud AI ---")
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7)
-        embeddings = OpenAIEmbeddings()
-        return llm, embeddings
-    
-    # Default: Local Ollama
-    print("--- Using Local Ollama AI ---")
-    llm = OllamaLLM(model="llama3", temperature=0.7)
-    embeddings = OllamaEmbeddings(model="nomic-embed-text")
-    return llm, embeddings
-
-# Initialize the chosen backend
-llm, embeddings = get_ai_backends()
+# --- AI & Memory Initialization (Ollama Only) ---
+# Connects the Brain (Ollama) to the Memory (Vector Store)
+embeddings = OllamaEmbeddings(model="nomic-embed-text")
+llm = OllamaLLM(model="llama3", temperature=0.7)
 
 persistent_client = chromadb.PersistentClient(path=DB_DIR)
 vector_store = Chroma(
@@ -135,9 +103,6 @@ vector_store = Chroma(
 class QueryRequest(BaseModel):
     question: str
     context_source: Optional[str] = None
-
-class QuestionGenRequest(BaseModel):
-    filename: str
 
 # --- API Endpoints (The Routes) ---
 # Specific tasks the backend performs on request
@@ -188,72 +153,9 @@ async def query_document(request: QueryRequest):
         Question: {request.question}
         Answer:
         """
-        # For LangChain ChatModels (Groq/OpenAI), we use .invoke()
-        # For OllamaLLM, we also use .invoke()
-        response = llm.invoke(prompt)
-        # ChatModels return a message object, LLMs return a string
-        answer = response.content if hasattr(response, 'content') else response
-        return {"answer": answer}
+        return {"answer": llm.invoke(prompt)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/generate-questions") # Generates 35+ hard engineering questions
-async def generate_questions(request: QuestionGenRequest):
-    try:
-        # Retrieve a large amount of context for question generation
-        # We'll take top 10 chunks to get a good overview
-        results = vector_store.similarity_search(
-            "Give me the core technical concepts and implementation details", 
-            k=10, 
-            filter={"source": request.filename}
-        )
-        context = "\n".join([doc.page_content for doc in results])
-        
-        prompt = f"""
-        You are an elite Senior Principal Engineer. 
-        Your task is to generate 35 extremely difficult, advanced technical questions based on the provided document content.
-        
-        The questions must target:
-        - Deep technical internals and architecture
-        - Scalability, performance, and security trade-offs
-        - Edge cases, failure scenarios, and algorithmic complexity
-        - Hard implementation challenges and debugging scenarios
-        
-        FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS (Markdown):
-        
-        # MindX — Advanced Technical Questions
-        
-        ## Document: {request.filename}
-        
-        ### Section: Core Concepts & Internals
-        [List 7 questions here]
-        
-        ### Section: Implementation & Coding Logic
-        [List 7 questions here]
-        
-        ### Section: Architecture & Scalability
-        [List 7 questions here]
-        
-        ### Section: Edge Cases & Reliability
-        [List 7 questions here]
-        
-        ### Section: Security & Performance Trade-offs
-        [List 7 questions here]
-        
-        RULES:
-        - DO NOT provide answers.
-        - Questions must require deep reasoning, not simple lookups.
-        - Style: Tough, interview-like, academic, and professional.
-        
-        Document Context:
-        {context}
-        """
-        
-        response = llm.invoke(prompt)
-        questions = response.content if hasattr(response, 'content') else response
-        return {"questions_markdown": questions}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Question generation failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
