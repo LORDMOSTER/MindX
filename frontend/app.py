@@ -161,7 +161,9 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-API_BASE_URL = "http://localhost:8000"
+# --- API Configuration ---
+# Use environment variable for cloud deployment, fallback to localhost for development
+API_BASE_URL = os.getenv("MINDX_API_URL", "http://localhost:8000")
 
 # --- Sidebar Content ---
 with st.sidebar:
