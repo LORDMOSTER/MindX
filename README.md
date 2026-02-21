@@ -63,6 +63,6 @@ Streamlit Community Cloud is for the UI. To make the backend work in the cloud w
    - Get a free API key from [Groq](https://console.groq.com/) (recommended for speed) or [OpenAI](https://platform.openai.com/).
 2. **Configure Environment Variables**:
    - In your backend hosting service (Render/Railway), add:
-     - `GROQ_API_KEY` = your_key
-     - (Optional) `OPENAI_API_KEY` = your_key
+     - `GROQ_API_KEY` = your_actual_grok_key_here
+     - (Optional) `OPENAI_API_KEY` = your_openai_key_here
 3. **Hybrid Logic**: MindX will automatically detect these keys and switch to Cloud AI. If no keys are present, it will try to use local Ollama.
