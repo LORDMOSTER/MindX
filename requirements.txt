@@ -11,3 +11,6 @@ requests
 python-multipart
 pypdf
 python-docx
+langchain-groq
+langchain-openai
+python-dotenv

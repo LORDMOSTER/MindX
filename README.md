@@ -57,7 +57,12 @@ The backend (FastAPI) needs to be reachable by a public URL.
      MINDX_API_URL = "https://your-backend-url.com"
      ```
 
-### 3. Deployment Note
-Streamlit Community Cloud is for the UI. Since the AI models (Ollama) are typically local, you will need to either:
-- Expose your local backend using a tunnel like **ngrok**.
-- Or, modify `backend/main.py` to use a cloud AI provider (OpenAI, Groq, etc.) instead of Ollama.
+### 3. Deployment Note (Important)
+Streamlit Community Cloud is for the UI. To make the backend work in the cloud without local Ollama:
+1. **Set up a Cloud AI Provider**: 
+   - Get a free API key from [Groq](https://console.groq.com/) (recommended for speed) or [OpenAI](https://platform.openai.com/).
+2. **Configure Environment Variables**:
+   - In your backend hosting service (Render/Railway), add:
+     - `GROQ_API_KEY` = your_key
+     - (Optional) `OPENAI_API_KEY` = your_key
+3. **Hybrid Logic**: MindX will automatically detect these keys and switch to Cloud AI. If no keys are present, it will try to use local Ollama.

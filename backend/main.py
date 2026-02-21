@@ -8,8 +8,13 @@ import pdfplumber               # Specialist tool for reading and extracting tex
 import docx                     # Specialist tool for reading and extracting text from Word (.docx) files
 from langchain_text_splitters import RecursiveCharacterTextSplitter # Cuts long documents into manageable pieces
 from langchain_community.vectorstores import Chroma                 # Library that stores document as math vectors
-from langchain_ollama import OllamaEmbeddings, OllamaLLM           # Connects to Ollama models (nomic-embed and llama3)
+from langchain_ollama import OllamaEmbeddings, OllamaLLM           # Local Ollama support
+from langchain_groq import ChatGroq                                 # Cloud Groq support
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings           # Cloud OpenAI support
+from dotenv import load_dotenv                                      # Loads keys from .env if present
 import chromadb                 # Database engine used for ultra-fast document searching
+
+load_dotenv() # Load local environment variables if they exist
 
 app = FastAPI(title="MindX API")
 
@@ -88,16 +93,44 @@ def chunk_text(text: str, chunk_size: int = 1500, chunk_overlap: int = 300):
     chunks = text_splitter.split_text(text)
     return [c.strip() for c in chunks if c.strip()]
 
-# --- AI & Memory Initialization ---
-# Connects the Brain (Ollama) to the Memory (Vector Store)
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+# --- AI & Memory Initialization (Hybrid Mode) ---
+# Decides whether to use Cloud (Groq/OpenAI) or Local (Ollama)
+
+def get_ai_backends():
+    # Priority 1: Groq (Free & Fast)
+    if os.getenv("GROQ_API_KEY"):
+        print("--- Using Groq Cloud AI ---")
+        llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.7)
+        # Use OpenAI-style embeddings if available, otherwise fallback to local for embeddings 
+        # (Chroma needs embeddings locally for initial indexing if not using a cloud vector DB)
+        if os.getenv("OPENAI_API_KEY"):
+             embeddings = OpenAIEmbeddings()
+        else:
+             embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        return llm, embeddings
+    
+    # Priority 2: OpenAI
+    if os.getenv("OPENAI_API_KEY"):
+        print("--- Using OpenAI Cloud AI ---")
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7)
+        embeddings = OpenAIEmbeddings()
+        return llm, embeddings
+    
+    # Default: Local Ollama
+    print("--- Using Local Ollama AI ---")
+    llm = OllamaLLM(model="llama3", temperature=0.7)
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    return llm, embeddings
+
+# Initialize the chosen backend
+llm, embeddings = get_ai_backends()
+
 persistent_client = chromadb.PersistentClient(path=DB_DIR)
 vector_store = Chroma(
     client=persistent_client,
     collection_name="mindx_collection",
     embedding_function=embeddings,
 )
-llm = OllamaLLM(model="llama3", temperature=0.7)
 
 class QueryRequest(BaseModel):
     question: str
@@ -155,7 +188,12 @@ async def query_document(request: QueryRequest):
         Question: {request.question}
         Answer:
         """
-        return {"answer": llm.invoke(prompt)}
+        # For LangChain ChatModels (Groq/OpenAI), we use .invoke()
+        # For OllamaLLM, we also use .invoke()
+        response = llm.invoke(prompt)
+        # ChatModels return a message object, LLMs return a string
+        answer = response.content if hasattr(response, 'content') else response
+        return {"answer": answer}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -212,7 +250,8 @@ async def generate_questions(request: QuestionGenRequest):
         """
         
         response = llm.invoke(prompt)
-        return {"questions_markdown": response}
+        questions = response.content if hasattr(response, 'content') else response
+        return {"questions_markdown": questions}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Question generation failed: {str(e)}")
 
